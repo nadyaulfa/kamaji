@@ -25,6 +25,9 @@
   ### execute
     bash <(curl -s https://raw.githubusercontent.com/teghitsugaya/kamaji/main/createcluster.sh)
 
+  ### execute tcp temp
+    bash <(curl -s https://raw.githubusercontent.com/nadyaulfa/kamaji/main/createcluster.sh)
+
 # Add Worker
   ### To Add the Worker, cluster name and version must same form exsiting cluster
   ### To see exsiting cluster, exceute this command:
