@@ -17,9 +17,6 @@ export AVAILABILITY_ZONE=AZ_Public01_DC2
 export NETWORK=Public_Subnet02_DC2
 export COUNT=1
 
-#Proejct Tenant Parameters
-. ~/cloud_development-openrc.sh
-
 echo "Deploy Cluster Kubernetes"
 echo "Cluster Name: ${TENANT_NAME}"
 echo "Version: ${TENANT_VERSION}"
@@ -73,54 +70,6 @@ kubectl get secrets -n ${TENANT_NAMESPACE} ${TENANT_NAME}-admin-kubeconfig -o js
   | jq -r '.data["admin.conf"]' \
   | base64 --decode \
   > ${TENANT_NAME}.kubeconfig
+kubeadm --kubeconfig=${TENANT_NAME}.kubeconfig token create --print-join-command
 
-echo ""
-echo "Create WORKER"
-echo "Waiting..."
 
-JOIN_CMD=$(kubeadm --kubeconfig=${TENANT_NAME}.kubeconfig token create --print-join-command)
-
-cat << EOF | tee script.sh > /dev/null 2>&1
-#cloud-config
-debug: True
-runcmd:
- - sudo apt-get update
- - sudo apt install -y kubeadm=${TENANT_VERSION}-00 kubelet=${TENANT_VERSION}-00 kubectl=${TENANT_VERSION}-00 --allow-downgrades --allow-change-held-packages
- - sudo apt-mark hold kubelet kubeadm kubectl
- - ${JOIN_CMD}
-EOF
-
-for i in $(seq 1 ${COUNT}); do
-   export rand=$(openssl rand -hex 2)
-   openstack server create --flavor ${WORKER_FLAVOR} --image "Worker Image Ubuntu 22.04" --network ${NETWORK} --security-group allow-all --availability-zone ${AVAILABILITY_ZONE} --key-name remote-server --user-data script.sh "${TENANT_NAME}-worker-${rand}" > /dev/null 2>&1 #perhatikan security group dan keypair (harus ada pada user yang memprovisioning)
-done
-
-kubectl --kubeconfig=${TENANT_NAME}.kubeconfig apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.24.1/manifests/calico.yaml > /dev/null 2>&1
-
-while true; do  
-  STATUS=$(kubectl --kubeconfig=${TENANT_NAME}.kubeconfig get deploy -n kube-system | grep coredns | awk '{print $4}') #Mengambil parameter deployment coredns, kedepannya parameter yang diambil yaitu, pod (running), node (ready)
-case "$STATUS" in
-    "2")
-      echo "Create WORKER SUCCESS"
-      break
-      ;;
-    *)
-  esac
-done
-
-sleep 2s
-
-echo ""
-echo ""
-echo "Node Cluster"
-kubectl --kubeconfig=${TENANT_NAME}.kubeconfig get nodes
-echo ""
-echo ""
-
-echo "Your Cluster is Ready !!!"
-echo ""
-echo "To Use your cluster = export KUBECONFIG=$PWD/${TENANT_NAME}.kubeconfig"
-echo ""
-
-rm -rf script.sh > /dev/null 2>&1
-rm -rf createcluster.sh > /dev/null 2>&1
